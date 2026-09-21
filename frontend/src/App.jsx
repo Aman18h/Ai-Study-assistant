@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import FlashcardGenerator from "./components/flashcards/FlashcardGenerator";
 import {
   loginUser,
   uploadPDF,
@@ -33,6 +34,7 @@ function App() {
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [flashcardsOpen, setFlashcardsOpen] = useState(false);
 
   const chatEndRef = useRef(null);
 
@@ -76,6 +78,8 @@ function App() {
     setMessages([]);
     setDocuments([]);
     setSessions([]);
+    setFlashcardsOpen(false);
+    setSummaryOpen(false);
   };
 
   const handleUploadPDF = async (chosenFile) => {
@@ -148,12 +152,13 @@ function App() {
       console.log(error);
     }
   };
-
   const handleSelectDocument = (doc) => {
     setSelectedDocument(doc);
     setSelectedSession(null);
     setMessages([]);
     setText(doc.summary || "");
+    setFlashcardsOpen(false);
+    setSummaryOpen(false);
     fetchSessions(doc.id);
   };
 
@@ -255,13 +260,29 @@ function App() {
           selectedDocument={selectedDocument}
           selectedSession={selectedSession}
           documentTitle={selectedDocument?.title}
-          onToggleSummary={() => setSummaryOpen(true)}
+          onToggleSummary={() => {
+            setSummaryOpen(true);
+            setFlashcardsOpen(false);
+          }}
+          onToggleFlashcards={() => {
+            setFlashcardsOpen(true);
+            setSummaryOpen(false);
+          }}
         />
         <SummaryPanel
           text={text}
           open={summaryOpen}
           onClose={() => setSummaryOpen(false)}
         />
+
+        {flashcardsOpen && selectedDocument && (
+          <div className="absolute inset-0 z-20 overflow-y-auto bg-white">
+            <FlashcardGenerator
+              document={selectedDocument}
+              onExit={() => setFlashcardsOpen(false)}
+            />
+          </div>
+        )}
       </div>
     </MainLayout>
   );
