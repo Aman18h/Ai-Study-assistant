@@ -13,15 +13,27 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from .models import PDFDocument,ChatSession ,ChatMessage
 from django.shortcuts import get_object_or_404
+from rest_framework import status
 
+from .models import PDFDocument,Flashcard
+from .serializers import FlashcardSerializer
+from .flashcard_service import generate_flashcards
 # Load environment variables
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Gemini Client
-client = genai.Client(api_key=GEMINI_API_KEY)
+def get_gemini_client():
+    api_key = os.getenv("GEMINI_API_KEY")
 
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY is not configured in the environment."
+        )
+
+    return genai.Client(api_key=api_key)
+
+
+client = None
 
 def home(request):
     return JsonResponse({
@@ -37,6 +49,7 @@ def ask_question(request):
             status=400
         )
     try:
+        client = get_gemini_client()
         body = json.loads(request.body)
         question = body.get("question")
         document_id = body.get("document_id")
@@ -308,3 +321,115 @@ def get_chat_sessions(request, document_id):
         })
 
     return Response(data)
+
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generate_document_flashcards(request, document_id):
+
+    try:
+        document = PDFDocument.objects.get(id=document_id)
+    except PDFDocument.DoesNotExist:
+        return Response(
+            {"error": "Document not found."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    number_of_cards = request.data.get("number_of_cards", 10)
+    difficulty = request.data.get("difficulty", "medium")
+
+    try:
+        number_of_cards = int(number_of_cards)
+    except (TypeError, ValueError):
+        return Response(
+            {"error": "number_of_cards must be an integer."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if number_of_cards < 1 or number_of_cards > 50:
+        return Response(
+            {"error": "Number of cards must be between 1 and 50."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if difficulty not in ["easy", "medium", "hard"]:
+        return Response(
+            {"error": "Difficulty must be easy, medium, or hard."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        generated_cards = generate_flashcards(
+            document_id=document.id,
+            number_of_cards=number_of_cards,
+            difficulty=difficulty,
+        )
+
+    except Exception as e:
+        return Response(
+            {
+                "error": "Failed to generate flashcards.",
+                "details": str(e),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+    saved_cards = []
+
+    for card in generated_cards:
+
+        question = card.get("question")
+        answer = card.get("answer")
+
+        if not question or not answer:
+            continue
+
+        flashcard = Flashcard.objects.create(
+            document=document,
+            question=question,
+            answer=answer,
+            difficulty=card.get("difficulty", difficulty),
+        )
+
+        saved_cards.append(flashcard)
+
+    serializer = FlashcardSerializer(
+        saved_cards,
+        many=True
+    )
+
+    return Response(
+        {
+            "message": "Flashcards generated successfully.",
+            "count": len(saved_cards),
+            "flashcards": serializer.data,
+        },
+        status=status.HTTP_201_CREATED,
+    )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_document_flashcards(request, document_id):
+
+    try:
+        document = PDFDocument.objects.get(id=document_id)
+    except PDFDocument.DoesNotExist:
+        return Response(
+            {"error": "Document not found."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    flashcards = Flashcard.objects.filter(
+        document=document
+    ).order_by("-created_at")
+
+    serializer = FlashcardSerializer(
+        flashcards,
+        many=True
+    )
+
+    return Response({
+        "count": flashcards.count(),
+        "flashcards": serializer.data
+    })

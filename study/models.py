@@ -40,3 +40,22 @@ class ChatMessage(models.Model):
 
     def __str__(self):
         return self.question[:50]
+
+class Flashcard(models.Model):
+    document = models.ForeignKey(
+        PDFDocument,
+        on_delete=models.CASCADE,
+        related_name="flashcards"
+    )
+    question = models.TextField()
+    answer = models.TextField()
+    difficulty = models.CharField(
+        max_length=10,
+        default="medium"
+    )
+    review_count = models.PositiveIntegerField(default=0)
+    correct_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.question[:80]

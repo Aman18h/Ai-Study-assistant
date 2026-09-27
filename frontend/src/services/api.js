@@ -43,3 +43,11 @@ export const getChatSessions = (document_id) =>
 
 export const getChatMessages = (sessionId) =>
     API.get(`chat/${sessionId}/`);
+export const generateFlashcards = (documentId, numberOfCards, difficulty) =>
+    API.post(`documents/${documentId}/flashcards/generate/`, {
+        number_of_cards: numberOfCards,
+        difficulty,
+    });
+
+export const getFlashcards = (documentId) =>
+    API.get(`documents/${documentId}/flashcards/`);

@@ -6,6 +6,7 @@ from .views import create_chat
 from .views import get_chat_history
 from .views import get_chat_sessions
 from .views import get_chat_messages
+from .views import generate_document_flashcards, get_document_flashcards
 urlpatterns=[
     
     path('',home),
@@ -21,5 +22,13 @@ urlpatterns=[
 path(
     "chat/<int:session_id>/",
     get_chat_messages
+),
+path(
+    "documents/<int:document_id>/flashcards/generate/",
+    generate_document_flashcards,
+),
+path(
+    "documents/<int:document_id>/flashcards/",
+    get_document_flashcards,
 ),
 ]
